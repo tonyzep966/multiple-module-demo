@@ -1,6 +1,6 @@
-package POJO;
+package com.tony966.javaspringdbfdemo.DTO;
 
-import Annotation.DBFClass;
+import com.tony966.javaspringdbfdemo.Annotation.DBFClass;
 
 import java.util.Date;
 import java.io.Serializable;
@@ -11,8 +11,8 @@ import java.io.Serializable;
  * @author Tony Dang
  * @since 2021-12-24 15:59:37
  */
-@DBFClass
-public class EnrRecruit implements Serializable {
+@DBFClass(type = "BMK")
+public class EnrRecruitBmkDTO implements Serializable {
     private static final long serialVersionUID = -82812114041215311L;
     /**
      * 主键

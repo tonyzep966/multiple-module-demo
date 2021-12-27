@@ -1,4 +1,4 @@
-package Utils;
+package com.tony966.javaspringdbfdemo.Utils;
 
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -8,7 +8,7 @@ import java.util.Properties;
 public class PropertiesUtils {
 	public static String readProperty(String key) {
 		String value = "";
-		try (InputStream inputStream = new FileInputStream("src/main/resources/dbf.properties")) {
+		try (InputStream inputStream = new FileInputStream("src/main/resources/config/dbf.properties")) {
 			Properties properties = new Properties();
 			properties.load(inputStream);
 			value = properties.getProperty(key);
