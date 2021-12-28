@@ -1,6 +1,8 @@
 package com.tony966.javaspringdbfdemo.DTO;
 
 import com.tony966.javaspringdbfdemo.Annotation.DBFClass;
+import com.tony966.javaspringdbfdemo.Annotation.DBFColumnExternal;
+import com.tony966.javaspringdbfdemo.Annotation.DBFColumnOrigin;
 
 import java.util.Date;
 import java.io.Serializable;
@@ -17,6 +19,7 @@ public class EnrRecruitBmkDTO implements Serializable {
     /**
      * 主键
      */
+    @DBFColumnOrigin(origin = "T_BMK", column = "KSH")
     private String id;
     /**
      * 层次代码
@@ -29,10 +32,12 @@ public class EnrRecruitBmkDTO implements Serializable {
     /**
      * 科类代码
      */
+    @DBFColumnOrigin(origin = "T_BMK", column = "KLDM")
     private String klm;
     /**
      * 科类名称
      */
+    @DBFColumnExternal(refer = "T_BMK", referColumn = "KLDM", target = "TD_KLDM", key = "KLDM", value = "KLMC")
     private String klmc;
     /**
      * 科类修正
@@ -45,6 +50,7 @@ public class EnrRecruitBmkDTO implements Serializable {
     /**
      * 生源地码(地区代码)
      */
+    @DBFColumnOrigin(origin = "T_BMK", column = "DQDM")
     private String sydm;
     /**
      * 考区码(取生源地码前两位)
@@ -53,6 +59,7 @@ public class EnrRecruitBmkDTO implements Serializable {
     /**
      * 生源地名称(地区名称)
      */
+    @DBFColumnExternal(refer = "T_BMK", referColumn = "DQDM", target = "TD_DQDM", key = "DQDM", value = "DQMC")
     private String sydmc;
     /**
      * 考生号
@@ -61,6 +68,7 @@ public class EnrRecruitBmkDTO implements Serializable {
     /**
      * 姓名
      */
+    @DBFColumnOrigin(origin = "T_BMK", column = "XM")
     private String xm;
     /**
      * 学号
@@ -69,30 +77,37 @@ public class EnrRecruitBmkDTO implements Serializable {
     /**
      * 准考证号
      */
+    @DBFColumnOrigin(origin = "T_BMK", column = "ZKZH")
     private String zkzh;
     /**
      * 身份证件类型名称
      */
+    @DBFColumnExternal(refer = "T_BMK", referColumn = "ZJLXDM", target = "TD_ZJLXDM", key = "ZJLXDM", value = "ZJLXMC")
     private String sfzjlxmc;
     /**
      * 身份证件类型码
      */
+    @DBFColumnOrigin(origin = "T_BMK", column = "ZJLXDM")
     private String sfzjlxm;
     /**
      * 身份证件号
      */
+    @DBFColumnOrigin(origin = "T_BMK", column = "ZJHM")
     private String sfzjh;
     /**
      * 学籍号
      */
+    @DBFColumnOrigin(origin = "T_BMK", column = "XJH")
     private String xjh;
     /**
      * 性别码
      */
+    @DBFColumnOrigin(origin = "T_BMK", column = "XBDM")
     private String xbm;
     /**
      * 性别名称
      */
+    @DBFColumnExternal(refer = "T_BMK", referColumn = "XBDM", target = "TD_XBDM", key = "XBDM", value = "XBMC")
     private String xbmc;
     /**
      * 照片(附件id)
@@ -101,14 +116,17 @@ public class EnrRecruitBmkDTO implements Serializable {
     /**
      * 出生日期
      */
+    @DBFColumnOrigin(origin = "T_BMK", column = "CSRQ")
     private Long csrq;
     /**
      * 批次代码
      */
+    @DBFColumnOrigin(origin = "T_TDD", column = "PCDM")
     private String pcm;
     /**
      * 批次名称
      */
+    @DBFColumnExternal(refer = "T_TDD", referColumn = "PCDM", target = "TD_PCDM", key = "PCDM", value = "PCMC")
     private String pcmc;
     /**
      * 批次修正
@@ -117,18 +135,22 @@ public class EnrRecruitBmkDTO implements Serializable {
     /**
      * 计划性质代码
      */
+    @DBFColumnOrigin(origin = "T_TDD", column = "JHXZDM")
     private String jhxzm;
     /**
      * 计划性质名称
      */
+    @DBFColumnExternal(refer = "T_TDD", referColumn = "JHXZDM", target = "TD_JHXZDM", key = "JHXZDM", value = "JHXZMC")
     private String jhxzmc;
     /**
      * 投档单位代码
      */
+    @DBFColumnOrigin(origin = "T_TDD", column = "TDDWDM")
     private String tddwm;
     /**
      * 投档单位名称(当前投档单位)
      */
+    @DBFColumnExternal(refer = "T_TDD", referColumn = "TDDWDM", target = "t_tddw", key = "TDDWDM", value = "TDDWMC")
     private String tddwmc;
     /**
      * 考生状态名称
@@ -141,10 +163,12 @@ public class EnrRecruitBmkDTO implements Serializable {
     /**
      * 考生资格代码
      */
+    @DBFColumnOrigin(origin = "T_BMK", column = "KSZG")
     private String kszgm;
     /**
      * 考生资格名称
      */
+    @DBFColumnExternal(refer = "T_BMK", referColumn = "KSZG", target = "TD_KSZGDM", key = "KSZGDM", value = "KSZGMC")
     private String kszgmc;
     /**
      * 专业代码
@@ -165,10 +189,12 @@ public class EnrRecruitBmkDTO implements Serializable {
     /**
      * 录取专业代码
      */
+    @DBFColumnOrigin(origin = "T_TDD", column = "LQZY")
     private String lqzym;
     /**
      * 录取专业名称
      */
+    @DBFColumnExternal(refer = "T_TDD", referColumn = "LQZY", target = "TD_ZYDH", key = "ZYDH", value = "ZYMC")
     private String lqzy;
     /**
      * 录取省市专业码
@@ -181,38 +207,47 @@ public class EnrRecruitBmkDTO implements Serializable {
     /**
      * 外语听力
      */
+    @DBFColumnOrigin(origin = "T_BMK", column = "WYTL")
     private String tl;
     /**
      * 考生类别代码
      */
+    @DBFColumnOrigin(origin = "T_BMK", column = "KSLBDM")
     private String kslbm;
     /**
      * 考生类别名称
      */
+    @DBFColumnExternal(refer = "T_BMK", referColumn = "KSLBDM", target = "TD_KSLBDM", key = "KSLBDM", value = "KSLBMC")
     private String kslbmc;
     /**
      * 民族代码
      */
+    @DBFColumnOrigin(origin = "T_BMK", column = "MZDM")
     private String mzm;
     /**
      * 民族名称
      */
+    @DBFColumnExternal(refer = "T_BMK", referColumn = "MZDM", target = "TD_MZDM", key = "MZDM", value = "MZMC")
     private String mzmc;
     /**
      * 政治面貌代码
      */
+    @DBFColumnOrigin(origin = "T_BMK", column = "ZZMMDM")
     private String zzmmm;
     /**
      * 政治面貌名称
      */
+    @DBFColumnExternal(refer = "T_BMK", referColumn = "ZZMMDM", target = "TD_ZZMMDM", key = "ZZMMDM", value = "ZZMMMC")
     private String zzmmmc;
     /**
      * 毕业学校代码(毕业中学号)
      */
+    @DBFColumnOrigin(origin = "T_BMK", column = "BYXXDM")
     private String byzxh;
     /**
      * 毕业学校名称
      */
+    @DBFColumnOrigin(origin = "T_BMK", column = "BYXXMC")
     private String byzxmc;
     /**
      * 毕业中学邮政编码
@@ -221,10 +256,12 @@ public class EnrRecruitBmkDTO implements Serializable {
     /**
      * 毕业类别代码
      */
+    @DBFColumnOrigin(origin = "T_BMK", column = "BYLBDM")
     private String bylbm;
     /**
      * 毕业类别名称
      */
+    @DBFColumnExternal(refer = "T_BMK", referColumn = "BYLBDM", target = "TD_BYLBDM", key = "BYLBDM", value = "BYLBMC")
     private String bylbmc;
     /**
      * 毕业类别名称修正
@@ -233,34 +270,42 @@ public class EnrRecruitBmkDTO implements Serializable {
     /**
      * 考试类型代码
      */
+    @DBFColumnOrigin(origin = "T_BMK", column = "KSLXDM")
     private String kslxm;
     /**
      * 考试类型名称
      */
+    @DBFColumnExternal(refer = "T_BMK", referColumn = "KSLXDM", target = "TD_KSLXDM", key = "KSLXDM", value = "KSLXMC")
     private String kslxmc;
     /**
      * 考生特征代码
      */
+    @DBFColumnOrigin(origin = "T_BMK", column="KSTZ")
     private String kstzm;
     /**
      * 考生特征名称
      */
+    @DBFColumnExternal(refer = "T_BMK", referColumn = "KSTZ", target = "TD_KSTZDM", key = "KSTZDM", value = "KSTZMC")
     private String kstzmc;
     /**
      * 残障类别代码
      */
+    @DBFColumnOrigin(origin = "T_BMK", column="CZLBDM")
     private String czlbm;
     /**
      * 残障类别名称
      */
+    @DBFColumnExternal(refer = "T_BMK", referColumn = "CZLBDM", target = "TD_CZLBDM", key = "CZLBDM", value = "CZLBMC")
     private String czlbmc;
     /**
      * 户籍类别代码
      */
+    @DBFColumnOrigin(origin = "T_BMK", column = "HJLBDM")
     private String hjlbm;
     /**
      * 户籍类别名称
      */
+    @DBFColumnExternal(refer = "T_BMK", referColumn = "HJLBDM", target = "TD_HJLBDM", key = "HJLBDM", value = "HJLBMC")
     private String hjlbmc;
     /**
      * 户口所在地代码
@@ -273,22 +318,27 @@ public class EnrRecruitBmkDTO implements Serializable {
     /**
      * 家庭地址(通信地址)
      */
+    @DBFColumnOrigin(origin = "T_BMK", column = "TXDZ")
     private String txdz;
     /**
      * 邮政编码
      */
+    @DBFColumnOrigin(origin = "T_BMK", column = "YZBM")
     private String yzbm;
     /**
      * 收件人
      */
+    @DBFColumnOrigin(origin = "T_BMK", column = "SJR")
     private String sjr;
     /**
      * 联系电话
      */
+    @DBFColumnOrigin(origin = "T_BMK", column = "LXDH")
     private String dh;
     /**
      * 联系手机
      */
+    @DBFColumnOrigin(origin = "T_BMK", column = "LXSJ")
     private String lxsj;
     /**
      * 是否报到，0否1是
@@ -297,10 +347,12 @@ public class EnrRecruitBmkDTO implements Serializable {
     /**
      * 报到备注
      */
+    @DBFColumnOrigin(origin = "T_TDD", column = "BZ")
     private String bz;
     /**
      * 有何特长
      */
+    @DBFColumnOrigin(origin = "T_BMK", column = "KSTC")
     private String kstc;
     /**
      * 入学年份
@@ -309,26 +361,32 @@ public class EnrRecruitBmkDTO implements Serializable {
     /**
      * 应试卷种代码
      */
+    @DBFColumnOrigin(origin = "T_BMK", column = "YSJZDM")
     private String ysjzm;
     /**
      * 外语语种代码(应试外国语种码)
      */
+    @DBFColumnOrigin(origin = "T_BMK", column = "WYYZDM")
     private String yswgyzm;
     /**
      * 外语语种名称
      */
+    @DBFColumnExternal(refer = "T_BMK", referColumn = "WYYZDM", target = "TD_WYYZDM", key = "WYYZDM", value = "WYYZMC")
     private String wyyzmc;
     /**
      * 外语口试名称
      */
+    @DBFColumnExternal(refer = "T_BMK", referColumn = "WYKS", target = "TD_WYYZDM", key = "WYYZDM", value = "WYYZMC")
     private String wyksmc;
     /**
      * 外语口试代码
      */
+    @DBFColumnOrigin(origin = "T_BMK", column = "WYKS")
     private String wyksm;
     /**
      * 外语听力代码
      */
+    @DBFColumnOrigin(origin = "T_BMK", column = "WYTL")
     private String wytlm;
     /**
      * 户口性质代码
@@ -349,14 +407,17 @@ public class EnrRecruitBmkDTO implements Serializable {
     /**
      * 选考科目代码
      */
+    @DBFColumnOrigin(origin = "T_BMK", column = "XKKM")
     private String xkkmm;
     /**
      * 术科科目代码
      */
+    @DBFColumnOrigin(origin = "T_BMK", column = "SKKM")
     private String skkmm;
     /**
      * 选考科目
      */
+    // TODO
     private String xkkm;
     /**
      * 术科科目
@@ -369,22 +430,27 @@ public class EnrRecruitBmkDTO implements Serializable {
     /**
      * 何时何地受过何种奖励或处分(奖励与惩处)
      */
+    @DBFColumnOrigin(origin = "T_BMK", column = "KSJLHCF")
     private String jlycc;
     /**
      * 思想品德考核意见
      */
+    @DBFColumnOrigin(origin = "T_BMK", column = "SXPDKHYJ")
     private String sxpdkhyj;
     /**
      * 退档原因
      */
+    @DBFColumnExternal(refer = "T_TDD", referColumn = "TDYYDM", target = "TD_TDYYDM", key = "TDYYDM", value = "TDYYMC")
     private String tdyy;
     /**
      * 退档原因代码
      */
+    @DBFColumnOrigin(origin = "T_TDD", column = "TDYYDM")
     private String tdyym;
     /**
      * 成绩
      */
+    @DBFColumnOrigin(origin = "T_TDD", column = "CJ")
     private Double cj;
     /**
      * 是否允许专业调剂，0否1是
@@ -397,10 +463,12 @@ public class EnrRecruitBmkDTO implements Serializable {
     /**
      * 志愿特征代码
      */
+    @DBFColumnOrigin(origin = "T_TDD", column = "ZYTZ")
     private String zytzm;
     /**
      * 志愿特征名称
      */
+    @DBFColumnExternal(refer = "T_TDD", referColumn = "ZYTZ", target = "TD_ZYTZDM", key = "ZYTZDM", value = "ZYTZMC")
     private String zytzmc;
     /**
      * 专业类别代码
@@ -421,10 +489,12 @@ public class EnrRecruitBmkDTO implements Serializable {
     /**
      * 计划类别名称
      */
+    @DBFColumnExternal(refer = "T_TDD", referColumn = "JHLBDM", target = "TD_JHLBDM", key = "JHLBDM", value = "JHLBMC")
     private String jhlbmc;
     /**
      * 计划类别代码
      */
+    @DBFColumnOrigin(origin="T_TDD", column="JHLBDM")
     private String jhlbm;
     /**
      * 是否有报名表，0否1是
@@ -433,10 +503,12 @@ public class EnrRecruitBmkDTO implements Serializable {
     /**
      * 是否有成绩志愿表，0否1是
      */
+    // TODO
     private Integer cjzyb;
     /**
      * 是否有体检表，0否1是
      */
+    // TODO
     private Integer tjb;
     /**
      * 通知书号
@@ -497,6 +569,7 @@ public class EnrRecruitBmkDTO implements Serializable {
     /**
      * 创建者主键
      */
+    // TODO
     private String createUserId;
     /**
      * 更新者主键
@@ -505,6 +578,7 @@ public class EnrRecruitBmkDTO implements Serializable {
     /**
      * 创建时间
      */
+    // TODO
     private Long createTime;
     /**
      * 更新时间
@@ -513,6 +587,7 @@ public class EnrRecruitBmkDTO implements Serializable {
     /**
      * 创建日期
      */
+    // TODO
     private Date createDay;
     /**
      * 更新日期
@@ -521,6 +596,7 @@ public class EnrRecruitBmkDTO implements Serializable {
     /**
      * 数据来源，0数据库文件导入，1模板导入，2dbf文件
      */
+    // TODO
     private String sourceType;
     /**
      * 备用字段1

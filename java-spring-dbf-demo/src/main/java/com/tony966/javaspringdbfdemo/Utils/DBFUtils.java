@@ -8,6 +8,7 @@ import com.tony966.javaspringdbfdemo.Annotation.DBFColumnExternal;
 import com.tony966.javaspringdbfdemo.Annotation.DBFColumnOrigin;
 import com.tony966.javaspringdbfdemo.Filter.RegexFilter;
 import com.tony966.javaspringdbfdemo.PO.EnrRecruit;
+import com.tony966.javaspringdbfdemo.constant.CityConstant;
 import org.apache.commons.beanutils.ConvertUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.ClassUtils;
@@ -23,6 +24,8 @@ import java.lang.reflect.Field;
 import java.nio.charset.Charset;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class DBFUtils {
 	/**
@@ -74,15 +77,31 @@ public class DBFUtils {
 		}
 	}
 
+	private static String getRealAbsolutePathIgnoreCase(String rootPath, String fileName) {
+		File root = new File(rootPath);
+		if (!root.exists() || !root.isDirectory()) {
+			return null;
+		}
+		File[] find = root.listFiles(new RegexFilter(".*(?i)" + fileName + "\\.dbf"));
+		if (ObjectUtils.isEmpty(find)) {
+			return null;
+		}
+		return find[0].getAbsolutePath();
+	}
+
 	/**
 	 * 获取映射关系
 	 *
-	 * @param path        指定来源的DBF路径
+	 * @param rootPath    包含DBF文件的省市根路径
+	 * @param fileName    DBF文件名, 不含后缀名
 	 * @param keyColumn   key列名
 	 * @param valueColumn value列名
 	 * @return 映射关系
 	 */
-	private static Map<String, String> getMap(String path, String keyColumn, String valueColumn) {
+	private static Map<String, String> getMap(String rootPath, String fileName, String keyColumn, String valueColumn) {
+		String path = getRealAbsolutePathIgnoreCase(rootPath, fileName);
+		if (StringUtils.isEmpty(path))
+			return null;
 		Map<String, String> resultMap = new HashMap<>();
 		try (DBFReader reader = new DBFReader(new FileInputStream(path), Charset.forName("GB2312"))) {
 			DBFRow row;
@@ -101,12 +120,16 @@ public class DBFUtils {
 	 * 查询与字段值相匹配的一行<br/>
 	 * 相当于 select * from DBF where targetColumn = targetValue
 	 *
-	 * @param path         DBF表文件路径
+	 * @param rootPath     包含DBF文件的省市根路径
+	 * @param fileName     DBF文件名称, 不含后缀名
 	 * @param targetColumn 查询判断相等的字段
 	 * @param targetValue  字段相等的目标值
 	 * @return 查询到的一行
 	 */
-	private static Map<String, String> selectSingleDBFRow(String path, String targetColumn, String targetValue) {
+	private static Map<String, String> selectSingleDBFRow(String rootPath, String fileName, String targetColumn, String targetValue) {
+		String path = getRealAbsolutePathIgnoreCase(rootPath, fileName);
+		if (StringUtils.isEmpty(path))
+			return null;
 		Map<String, String> result = new HashMap<>();
 		try (DBFReader reader = new DBFReader(new FileInputStream(path), Charset.forName("GB2312"))) {
 			int numberOfFields = reader.getFieldCount();
@@ -193,6 +216,21 @@ public class DBFUtils {
 		return scanFiles;
 	}
 
+	private static String getProvinceName(String rootPath) {
+		StringBuffer patternString = new StringBuffer();
+		for (String key : CityConstant.originPlanMap.keySet()) {
+			patternString.append(key).append("|");
+		}
+		patternString = new StringBuffer("(" + StringUtils.chop(patternString.toString()) + ")");
+
+		Pattern pattern = Pattern.compile(patternString.toString());
+		Matcher matcher = pattern.matcher(rootPath);
+		if (matcher.find())
+			return CityConstant.originPlanMap.get(matcher.group(0));
+		else
+			return "";
+	}
+
 	/**
 	 * 省市的通用具体处理方法
 	 *
@@ -241,13 +279,15 @@ public class DBFUtils {
 
 				EnrRecruit recruit = new EnrRecruit();
 				String ksh = row.getString("KSH");
+				String syd = getProvinceName(root);
+				recruit.setSyd(syd);
 
 				// 处理来源于单表查询的字段
 				for (Map.Entry<String, String> entry : originMap.entrySet()) {
 					Class<?> recruitClass = recruit.getClass();
 					String origin = entry.getKey();
 					String column = entry.getValue();
-					Map<String, String> selected = selectSingleDBFRow(root + "/" + origin + ".dbf", "KSH", ksh);
+					Map<String, String> selected = selectSingleDBFRow(root, origin, "KSH", ksh);
 					if (MapUtils.isNotEmpty(selected)) {
 						Field field = recruitClass.getDeclaredField(originField.removeFirst());
 						field.set(recruit, ConvertUtils.convert(selected.get(column), field.getType()));
@@ -262,10 +302,10 @@ public class DBFUtils {
 					String target = current.get(2);
 					String key = current.get(3);
 					String value = current.get(4);
-					Map<String, String> selected = selectSingleDBFRow(root + "/" + refer + ".dbf", "KSH", ksh);
+					Map<String, String> selected = selectSingleDBFRow(root, refer, "KSH", ksh);
 					if (MapUtils.isNotEmpty(selected)) {
 						String keyTarget = selected.get(referColumn);
-						Map<String, String> dictionary = getMap(root + "/" + target + ".dbf", key, value);
+						Map<String, String> dictionary = getMap(root , target, key, value);
 						if (MapUtils.isNotEmpty(dictionary)) {
 							String valueTarget = dictionary.get(keyTarget);
 							Field field = recruit.getClass().getField(externalField.removeFirst());
@@ -273,6 +313,14 @@ public class DBFUtils {
 						}
 					}
 				}
+				// 考区码截取生源地码(地区代码)前两位
+				recruit.setKqm(recruit.getSydm().substring(0,2));
+				recruit.setYxFlag(0);
+				recruit.setPayFlag(0);
+				recruit.setDormFlag(0);
+				recruit.setAffirmFlag(0);
+				recruit.setCheckFlag(0);
+				recruit.setGatherFlag(0);
 				recruits.add(recruit);
 			}
 		} catch (NoSuchFieldException | IllegalAccessException | IOException | DBFException e) {
