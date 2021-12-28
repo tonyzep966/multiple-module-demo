@@ -1,19 +1,19 @@
 package com.tony966.javaspringdbfdemo.Utils;
 
 import com.linuxense.javadbf.DBFException;
-import com.linuxense.javadbf.DBFField;
 import com.linuxense.javadbf.DBFReader;
 import com.linuxense.javadbf.DBFRow;
+import com.tony966.javaspringdbfdemo.Annotation.DBFClass;
 import com.tony966.javaspringdbfdemo.Annotation.DBFColumnExternal;
 import com.tony966.javaspringdbfdemo.Annotation.DBFColumnOrigin;
-import com.tony966.javaspringdbfdemo.DTO.EnrRecruitBmkDTO;
-import com.tony966.javaspringdbfdemo.DTO.EnrRecruitTddDTO;
 import com.tony966.javaspringdbfdemo.Filter.RegexFilter;
 import com.tony966.javaspringdbfdemo.PO.EnrRecruit;
 import org.apache.commons.beanutils.ConvertUtils;
 import org.apache.commons.collections4.MapUtils;
+import org.apache.commons.lang3.ClassUtils;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.util.FileSystemUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
@@ -65,6 +65,15 @@ public class DBFUtils {
 		}
 	}
 
+	private static boolean deleteDir(String path) {
+		File deletePath = new File(path);
+		if ((!deletePath.exists()) || deletePath.isDirectory()) {
+			return false;
+		} else {
+			return FileSystemUtils.deleteRecursively(deletePath);
+		}
+	}
+
 	/**
 	 * 获取映射关系
 	 *
@@ -101,12 +110,12 @@ public class DBFUtils {
 		Map<String, String> result = new HashMap<>();
 		try (DBFReader reader = new DBFReader(new FileInputStream(path), Charset.forName("GB2312"))) {
 			int numberOfFields = reader.getFieldCount();
-			Map<String, Integer> columnMap = new HashMap<>();
 
-			for (int i = 0; i < numberOfFields; i++) {
-				DBFField field = reader.getField(i);
-				columnMap.put(field.getName(), i);
-			}
+//			Map<String, Integer> columnMap = new HashMap<>();
+//			for (int i = 0; i < numberOfFields; i++) {
+//				DBFField field = reader.getField(i);
+//				columnMap.put(field.getName(), i);
+//			}
 
 			DBFRow row;
 			while ((row = reader.nextRow()) != null) {
@@ -115,6 +124,7 @@ public class DBFUtils {
 						Object dbfValue = row.getObject(column);
 						String value;
 						if (dbfValue instanceof Date) {
+							// 日期类型及格式需要手动转换
 							SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd");
 							value = format.format(dbfValue);
 						} else {
@@ -145,10 +155,10 @@ public class DBFUtils {
 		if (!directory.isDirectory()) {
 			throw new RuntimeException('"' + folderPath + '"' + " 该路径不是一个文件夹的合法路径");
 		} else {
-			//首先将第一层目录扫描一遍
+			//首先扫描根目录下的第一级目录
 			File[] files = directory.listFiles();
-			//遍历扫出的文件数组，如果是文件夹，将其放入到linkedList中稍后处理
 			if (ObjectUtils.isNotEmpty(files)) {
+				//如果File是文件夹，将其放入到LinkedList中稍后处理
 				for (File file : files) {
 					if (file.isDirectory()) {
 						queueFiles.add(file);
@@ -159,9 +169,9 @@ public class DBFUtils {
 				}
 			}
 
-			//如果linkedList非空遍历linkedList
+			//如果LinkedList非空遍历LinkedList, LinkedList只会保存文件夹路径
 			while (!queueFiles.isEmpty()) {
-				//移出linkedList中的第一个
+				//移出LinkedList中的第一个
 				File headDirectory = queueFiles.removeFirst();
 				// 如果该路径下包含指定DBF文件, 则直接将其放入结果
 				File[] tddList = headDirectory.listFiles(new RegexFilter(".*(?i)T_TDD\\.dbf"));
@@ -172,7 +182,7 @@ public class DBFUtils {
 					if (ObjectUtils.isNotEmpty(currentFiles)) {
 						for (File currentFile : currentFiles) {
 							if (currentFile.isDirectory()) {
-								//如果仍然是文件夹，将其放入linkedList中
+								// 如果仍然是文件夹，将其放回LinkedList中
 								queueFiles.add(currentFile);
 							}
 						}
@@ -183,10 +193,19 @@ public class DBFUtils {
 		return scanFiles;
 	}
 
+	/**
+	 * 省市的通用具体处理方法
+	 *
+	 * @param root       省市根目录
+	 * @param handleType 省市对应的实体类
+	 * @return 学生信息
+	 */
 	private static List<EnrRecruit> provinceHandler(String root, Class<?> handleType) {
+		// 从配置文件读取DBF文件的编码
+		String charset = PropertiesUtils.readProperty("dbf.encode");
 		List<EnrRecruit> recruits = new ArrayList<>();
 		File[] findTdd = new File(root).listFiles(new RegexFilter(".*(?i)T_TDD\\.dbf"));
-		String tddPath = root + "T_TDD.dbf";
+		String tddPath = root.endsWith("/") ? root + "T_TDD.dbf" : root + "/" + "T_TDD.dbf";
 		LinkedHashMap<String, String> originMap = new LinkedHashMap<>();
 		LinkedList<String> originField = new LinkedList<>();
 		LinkedList<LinkedList<String>> externalMap = new LinkedList<>();
@@ -194,8 +213,9 @@ public class DBFUtils {
 		if (ObjectUtils.isNotEmpty(findTdd)) {
 			tddPath = findTdd[0].getAbsolutePath();
 		}
-		String charset = PropertiesUtils.readProperty("dbf.encode");
+
 		try (DBFReader reader = new DBFReader(new FileInputStream(tddPath), Charset.forName(charset))) {
+			// 整理省市对应实体类的字段数据来源, 分为单表和两表连接
 			for (Field field : handleType.getDeclaredFields()) {
 				if (field.isAnnotationPresent(DBFColumnOrigin.class)) {
 					DBFColumnOrigin annotation = field.getAnnotation(DBFColumnOrigin.class);
@@ -222,6 +242,7 @@ public class DBFUtils {
 				EnrRecruit recruit = new EnrRecruit();
 				String ksh = row.getString("KSH");
 
+				// 处理来源于单表查询的字段
 				for (Map.Entry<String, String> entry : originMap.entrySet()) {
 					Class<?> recruitClass = recruit.getClass();
 					String origin = entry.getKey();
@@ -231,9 +252,9 @@ public class DBFUtils {
 						Field field = recruitClass.getDeclaredField(originField.removeFirst());
 						field.set(recruit, ConvertUtils.convert(selected.get(column), field.getType()));
 					}
-					recruits.add(recruit);
 				}
 
+				// 处理来源于两表连接查询的字段
 				while (!externalMap.isEmpty()) {
 					LinkedList<String> current = externalMap.removeFirst();
 					String refer = current.get(0);
@@ -251,8 +272,8 @@ public class DBFUtils {
 							field.set(recruit, ConvertUtils.convert(valueTarget, field.getType()));
 						}
 					}
-
 				}
+				recruits.add(recruit);
 			}
 		} catch (NoSuchFieldException | IllegalAccessException | IOException | DBFException e) {
 			e.printStackTrace();
@@ -260,23 +281,53 @@ public class DBFUtils {
 		return recruits;
 	}
 
+	/**
+	 * 判断该省市目录下是否有T_BMK.dbf
+	 *
+	 * @param path 省市路径
+	 * @return 是或否
+	 */
 	private static boolean haveBMK(String path) {
 		File folder = new File(path);
 		File[] result = folder.listFiles(new RegexFilter(".*(?i)T_BMK\\.dbf"));
 		return ObjectUtils.isNotEmpty(result);
 	}
 
+	/**
+	 * 将学生信息添加到List
+	 *
+	 * @param rootPath 根目录
+	 * @return 学生信息
+	 */
 	public static List<EnrRecruit> assembleRecruit(String rootPath) {
+		Set<Class<?>> targetClass = AnnotationUtils.scanTargetClass();
+		// 扫描使用注解标记的两种处理类
+		Class<?> bmkClass = targetClass.stream()
+				.filter(item -> StringUtils.equals(item.getAnnotation(DBFClass.class).type(), "BMK"))
+				.findAny()
+				.orElse(DBFClass.class);
+
+		Class<?> tddClass = targetClass.stream()
+				.filter(item -> StringUtils.equals(item.getAnnotation(DBFClass.class).type(), "TDD"))
+				.findAny()
+				.orElse(DBFClass.class);
+
+		if (ClassUtils.isAssignable(bmkClass, DBFClass.class) || ClassUtils.isAssignable(tddClass, DBFClass.class)) {
+			return null;
+		}
+
 		List<EnrRecruit> recruits = new ArrayList<>();
 		LinkedList<String> scanPath = new LinkedList<>(scanFile(rootPath));
 		while (!scanPath.isEmpty()) {
 			String current = scanPath.remove();
 			if (haveBMK(current)) {
-				recruits.addAll(provinceHandler(current, EnrRecruitBmkDTO.class));
+				recruits.addAll(provinceHandler(current, bmkClass));
 			} else {
-				recruits.addAll(provinceHandler(current, EnrRecruitTddDTO.class));
+				recruits.addAll(provinceHandler(current, tddClass));
 			}
 		}
+		// 组装为List后删除删除的目录及目录下面的文件
+		deleteDir(rootPath);
 		return recruits;
 	}
 }
