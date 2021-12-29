@@ -503,12 +503,10 @@ public class EnrRecruitBmkDTO implements Serializable {
     /**
      * 是否有成绩志愿表，0否1是
      */
-    // TODO
     private Integer cjzyb;
     /**
      * 是否有体检表，0否1是
      */
-    // TODO
     private Integer tjb;
     /**
      * 通知书号
@@ -569,7 +567,6 @@ public class EnrRecruitBmkDTO implements Serializable {
     /**
      * 创建者主键
      */
-    // TODO
     private String createUserId;
     /**
      * 更新者主键
@@ -578,7 +575,6 @@ public class EnrRecruitBmkDTO implements Serializable {
     /**
      * 创建时间
      */
-    // TODO
     private Long createTime;
     /**
      * 更新时间
@@ -587,7 +583,6 @@ public class EnrRecruitBmkDTO implements Serializable {
     /**
      * 创建日期
      */
-    // TODO
     private Date createDay;
     /**
      * 更新日期
@@ -596,7 +591,6 @@ public class EnrRecruitBmkDTO implements Serializable {
     /**
      * 数据来源，0数据库文件导入，1模板导入，2dbf文件
      */
-    // TODO
     private String sourceType;
     /**
      * 备用字段1

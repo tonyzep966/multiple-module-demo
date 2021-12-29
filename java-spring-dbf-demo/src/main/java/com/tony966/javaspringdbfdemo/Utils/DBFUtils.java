@@ -149,7 +149,10 @@ public class DBFUtils {
 						if (dbfValue instanceof Date) {
 							// 日期类型及格式需要手动转换
 							SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd");
-							value = format.format(dbfValue);
+							// 转换为标准日期格式字符串
+//							value = format.format(dbfValue);
+							// 转换为时间戳字符串
+							value = String.valueOf(((Date) dbfValue).getTime());
 						} else {
 							value = String.valueOf(dbfValue);
 						}
@@ -315,12 +318,23 @@ public class DBFUtils {
 				}
 				// 考区码截取生源地码(地区代码)前两位
 				recruit.setKqm(recruit.getSydm().substring(0,2));
+				recruit.setCjzyb(0);
+				recruit.setTjb(0);
+				recruit.setRegisterFlag(0);
 				recruit.setYxFlag(0);
 				recruit.setPayFlag(0);
 				recruit.setDormFlag(0);
 				recruit.setAffirmFlag(0);
 				recruit.setCheckFlag(0);
 				recruit.setGatherFlag(0);
+				recruit.setDeleteFlag(0);
+				// TODO
+//				recruit.setCreateUserId();
+				long currentTime = System.currentTimeMillis();
+				Date currentDate = new Date(currentTime);
+				recruit.setCreateTime(currentTime);
+				recruit.setCreateDay(currentDate);
+				recruit.setSourceType("2");
 				recruits.add(recruit);
 			}
 		} catch (NoSuchFieldException | IllegalAccessException | IOException | DBFException e) {
