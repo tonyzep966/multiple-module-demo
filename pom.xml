@@ -11,6 +11,7 @@
     <modules>
         <module>java-collection-demo</module>
         <module>java-file-demo</module>
+        <module>java-console-demo</module>
     </modules>
 
     <properties>

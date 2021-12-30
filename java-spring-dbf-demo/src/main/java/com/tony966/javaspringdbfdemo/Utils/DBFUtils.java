@@ -1,19 +1,22 @@
-package com.tony966.javaspringdbfdemo.Utils;
+package com.rock.enroll.utils.dbf;
 
 import com.linuxense.javadbf.DBFException;
 import com.linuxense.javadbf.DBFReader;
 import com.linuxense.javadbf.DBFRow;
-import com.tony966.javaspringdbfdemo.Annotation.DBFClass;
-import com.tony966.javaspringdbfdemo.Annotation.DBFColumnExternal;
-import com.tony966.javaspringdbfdemo.Annotation.DBFColumnOrigin;
-import com.tony966.javaspringdbfdemo.Filter.RegexFilter;
-import com.tony966.javaspringdbfdemo.PO.EnrRecruit;
-import com.tony966.javaspringdbfdemo.constant.CityConstant;
+import com.rock.auth.util.LoginInfoUtils;
+import com.rock.enroll.annotation.DBFClass;
+import com.rock.enroll.annotation.DBFColumnExternal;
+import com.rock.enroll.annotation.DBFColumnOrigin;
+import com.rock.enroll.constant.CityConstant;
+import com.rock.enroll.filter.dbf.RegexFilter;
+import com.rock.enroll.po.EnrRecruit;
 import org.apache.commons.beanutils.ConvertUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.ClassUtils;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 import org.springframework.util.FileSystemUtils;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -247,7 +250,7 @@ public class DBFUtils {
 		List<EnrRecruit> recruits = new ArrayList<>();
 		File[] findTdd = new File(root).listFiles(new RegexFilter(".*(?i)T_TDD\\.dbf"));
 		String tddPath = root.endsWith("/") ? root + "T_TDD.dbf" : root + "/" + "T_TDD.dbf";
-		LinkedHashMap<String, String> originMap = new LinkedHashMap<>();
+		LinkedHashMap<String, Pair<String, String>> originMap = new LinkedHashMap<>();
 		LinkedList<String> originField = new LinkedList<>();
 		LinkedList<LinkedList<String>> externalMap = new LinkedList<>();
 		LinkedList<String> externalField = new LinkedList<>();
@@ -262,7 +265,7 @@ public class DBFUtils {
 					DBFColumnOrigin annotation = field.getAnnotation(DBFColumnOrigin.class);
 					String origin = annotation.origin();
 					String column = annotation.column();
-					originMap.put(origin, column);
+					originMap.put(field.getName(), new ImmutablePair<>(origin, column));
 					originField.add(field.getName());
 				} else if (field.isAnnotationPresent(DBFColumnExternal.class)) {
 					LinkedList<String> temp = new LinkedList<>();
@@ -280,23 +283,33 @@ public class DBFUtils {
 			DBFRow row;
 			while ((row = reader.nextRow()) != null) {
 
+				int originFieldCount = 0;
 				EnrRecruit recruit = new EnrRecruit();
 				String ksh = row.getString("KSH");
 				String syd = getProvinceName(root);
 				recruit.setSyd(syd);
 
 				// 处理来源于单表查询的字段
-				for (Map.Entry<String, String> entry : originMap.entrySet()) {
+				for (Map.Entry<String, Pair<String, String>> entry : originMap.entrySet()) {
 					Class<?> recruitClass = recruit.getClass();
-					String origin = entry.getKey();
-					String column = entry.getValue();
-					Map<String, String> selected = selectSingleDBFRow(root, origin, "KSH", ksh);
-					if (MapUtils.isNotEmpty(selected)) {
-						Field field = recruitClass.getDeclaredField(originField.removeFirst());
-						field.set(recruit, ConvertUtils.convert(selected.get(column), field.getType()));
+					String origin = entry.getValue().getKey();
+					String column = entry.getValue().getValue();
+					String originFieldName = originField.get(originFieldCount);
+					if (StringUtils.equals(entry.getKey(), originFieldName)) {
+						Map<String, String> selected = selectSingleDBFRow(root, origin, "KSH", ksh);
+						if (MapUtils.isNotEmpty(selected)) {
+							Field field = recruitClass.getDeclaredField(originFieldName);
+							field.setAccessible(true);
+							if ("java.lang.String".equalsIgnoreCase(field.getGenericType().getTypeName()))
+								field.set(recruit, selected.get(column));
+							else
+								field.set(recruit, ConvertUtils.convert(selected.get(column), field.getType()));
+						}
 					}
+					originFieldCount++;
 				}
 
+				int externalFieldCount = 0;
 				// 处理来源于两表连接查询的字段
 				while (!externalMap.isEmpty()) {
 					LinkedList<String> current = externalMap.removeFirst();
@@ -308,28 +321,34 @@ public class DBFUtils {
 					Map<String, String> selected = selectSingleDBFRow(root, refer, "KSH", ksh);
 					if (MapUtils.isNotEmpty(selected)) {
 						String keyTarget = selected.get(referColumn);
-						Map<String, String> dictionary = getMap(root , target, key, value);
+						Map<String, String> dictionary = getMap(root, target, key, value);
 						if (MapUtils.isNotEmpty(dictionary)) {
 							String valueTarget = dictionary.get(keyTarget);
-							Field field = recruit.getClass().getField(externalField.removeFirst());
-							field.set(recruit, ConvertUtils.convert(valueTarget, field.getType()));
+							Field field = recruit.getClass().getDeclaredField(externalField.removeFirst());
+							field.setAccessible(true);
+							if ("java.lang.String".equalsIgnoreCase(field.getGenericType().getTypeName()))
+								field.set(recruit, valueTarget);
+							else
+								field.set(recruit, ConvertUtils.convert(valueTarget, field.getType()));
 						}
 					}
 				}
-				// 考区码截取生源地码(地区代码)前两位
-				recruit.setKqm(recruit.getSydm().substring(0,2));
-				recruit.setCjzyb(0);
-				recruit.setTjb(0);
-				recruit.setRegisterFlag(0);
-				recruit.setYxFlag(0);
-				recruit.setPayFlag(0);
-				recruit.setDormFlag(0);
-				recruit.setAffirmFlag(0);
-				recruit.setCheckFlag(0);
-				recruit.setGatherFlag(0);
-				recruit.setDeleteFlag(0);
-				// TODO
-//				recruit.setCreateUserId();
+				String sydm = recruit.getSydm();
+				if (StringUtils.isNotEmpty(sydm)) {
+					// 考区码截取生源地码(地区代码)前两位
+					recruit.setKqm(sydm.substring(0, 2));
+				}
+				recruit.setCjzyb((byte) 0);
+				recruit.setTjb((byte) 0);
+				recruit.setRegisterFlag((byte) 0);
+				recruit.setYxFlag((byte) 0);
+				recruit.setPayFlag((byte) 0);
+				recruit.setDormFlag((byte) 0);
+				recruit.setAffirmFlag((byte) 0);
+				recruit.setCheckFlag((byte) 0);
+				recruit.setGatherFlag((byte) 0);
+				recruit.setDeleteFlag((byte) 0);
+				recruit.setCreateUserId(LoginInfoUtils.getLoginUserId());
 				long currentTime = System.currentTimeMillis();
 				Date currentDate = new Date(currentTime);
 				recruit.setCreateTime(currentTime);
@@ -377,7 +396,6 @@ public class DBFUtils {
 		if (ClassUtils.isAssignable(bmkClass, DBFClass.class) || ClassUtils.isAssignable(tddClass, DBFClass.class)) {
 			return null;
 		}
-
 		List<EnrRecruit> recruits = new ArrayList<>();
 		LinkedList<String> scanPath = new LinkedList<>(scanFile(rootPath));
 		while (!scanPath.isEmpty()) {
