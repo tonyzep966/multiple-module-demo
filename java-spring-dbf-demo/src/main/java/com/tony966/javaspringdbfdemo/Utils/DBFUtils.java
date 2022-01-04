@@ -384,7 +384,6 @@ public class DBFUtils {
 	 * @param rootPath 根目录
 	 * @return 学生信息
 	 */
-	// TODO：参数
 	public static List<EnrRecruit> assembleRecruitAllFolders(String rootPath, String year, String level) {
 		Set<Class<?>> targetClass = AnnotationUtils.scanTargetClass();
 		// 扫描使用注解标记的两种处理类
