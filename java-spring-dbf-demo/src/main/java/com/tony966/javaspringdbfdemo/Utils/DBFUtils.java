@@ -6,6 +6,7 @@ import com.linuxense.javadbf.DBFRow;
 import com.tony966.javaspringdbfdemo.Annotation.DBFClass;
 import com.tony966.javaspringdbfdemo.Annotation.DBFColumnExternal;
 import com.tony966.javaspringdbfdemo.Annotation.DBFColumnOrigin;
+import com.tony966.javaspringdbfdemo.DTO.EnrRecruitBmkDTO;
 import com.tony966.javaspringdbfdemo.Filter.RegexFilter;
 import com.tony966.javaspringdbfdemo.PO.EnrRecruit;
 import com.tony966.javaspringdbfdemo.constant.CityConstant;
@@ -31,6 +32,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class DBFUtils {
+	private static HashMap<String, HashMap<String, String>> currentTdd = new HashMap<>();  // 学号 - 列名 - 值
+	private static HashMap<String, HashMap<String, String>> currentBmk = new HashMap<>();  // 学号 - 列名 - 值
+	private static HashMap<String, HashMap<String, String>> currentMap = new HashMap<>();   // 字典名 - 当前省市的映射字典
+
 	/**
 	 * 在basePath下保存上传的文件夹
 	 *
@@ -82,10 +87,10 @@ public class DBFUtils {
 
 	private static String getRealAbsolutePathIgnoreCase(String rootPath, String fileName) {
 		File root = new File(rootPath);
-		if (!root.exists() || !root.isDirectory()) {
+		if (!root.exists()) {
 			return null;
 		}
-		File[] find = root.listFiles(new RegexFilter(".*(?i)" + fileName + "\\.dbf"));
+		File[] find = root.listFiles(new RegexFilter(".*" + fileName + "\\.dbf"));
 		if (ObjectUtils.isEmpty(find)) {
 			return null;
 		}
@@ -103,19 +108,24 @@ public class DBFUtils {
 	 */
 	private static Map<String, String> getMap(String rootPath, String fileName, String keyColumn, String valueColumn) {
 		String path = getRealAbsolutePathIgnoreCase(rootPath, fileName);
+		HashMap<String, String> resultMap = new HashMap<>();
 		if (StringUtils.isEmpty(path))
 			return null;
-		Map<String, String> resultMap = new HashMap<>();
-		try (DBFReader reader = new DBFReader(new FileInputStream(path), Charset.forName("GB2312"))) {
-			DBFRow row;
-			while ((row = reader.nextRow()) != null) {
-				String key = String.valueOf(row.getObject(keyColumn));
-				String value = String.valueOf(row.getObject(valueColumn));
-				resultMap.put(key, value);
+		if (null != currentMap.get(path)) {
+			return currentMap.get(path);
+		} else {
+			try (DBFReader reader = new DBFReader(new FileInputStream(path), Charset.forName("GB2312"))) {
+				DBFRow row;
+				while ((row = reader.nextRow()) != null) {
+					String key = String.valueOf(row.getObject(keyColumn));
+					String value = String.valueOf(row.getObject(valueColumn));
+					resultMap.put(key, value);
+				}
+			} catch (DBFException | IOException e) {
+				e.printStackTrace();
 			}
-		} catch (DBFException | IOException e) {
-			e.printStackTrace();
 		}
+		currentMap.put(path, resultMap);
 		return resultMap;
 	}
 
@@ -136,12 +146,6 @@ public class DBFUtils {
 		Map<String, String> result = new HashMap<>();
 		try (DBFReader reader = new DBFReader(new FileInputStream(path), Charset.forName("GB2312"))) {
 			int numberOfFields = reader.getFieldCount();
-
-//			Map<String, Integer> columnMap = new HashMap<>();
-//			for (int i = 0; i < numberOfFields; i++) {
-//				DBFField field = reader.getField(i);
-//				columnMap.put(field.getName(), i);
-//			}
 
 			DBFRow row;
 			while ((row = reader.nextRow()) != null) {
@@ -167,6 +171,45 @@ public class DBFUtils {
 		} catch (DBFException | IOException e) {
 			e.printStackTrace();
 			return null;
+		}
+	}
+
+	private static void getWholeTable(String rootPath, String fileName, String mode) {
+		String path = getRealAbsolutePathIgnoreCase(rootPath, fileName);
+		String ksh = "";
+		if (StringUtils.isEmpty(path))
+			return;
+		try (DBFReader reader = new DBFReader(new FileInputStream(path), Charset.forName("GB2312"))) {
+			int numberOfFields = reader.getFieldCount();
+			DBFRow row;
+			while ((row = reader.nextRow()) != null) {
+				HashMap<String, String> result = new HashMap<>();
+				for (int column = 0; column < numberOfFields; column++) {
+					Object dbfValue = row.getObject(column);
+					String value;
+					if (dbfValue instanceof Date) {
+						// 日期类型及格式需要手动转换
+						SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd");
+						// 转换为标准日期格式字符串
+//							value = format.format(dbfValue);
+						// 转换为时间戳字符串
+						value = String.valueOf(((Date) dbfValue).getTime());
+					} else {
+						value = String.valueOf(dbfValue);
+					}
+					String columnName = reader.getField(column).getName();
+					if (StringUtils.equals(columnName, "KSH"))
+						ksh = value;
+					result.put(columnName, value);
+				}
+				if (StringUtils.equals(mode, "BMK")) {
+					currentBmk.put(ksh, result);
+				} else {
+					currentTdd.put(ksh, result);
+				}
+			}
+		} catch (DBFException | IOException e) {
+			e.printStackTrace();
 		}
 	}
 
@@ -203,7 +246,7 @@ public class DBFUtils {
 				//移出LinkedList中的第一个
 				File headDirectory = queueFiles.removeFirst();
 				// 如果该路径下包含指定DBF文件, 则直接将其放入结果
-				File[] tddList = headDirectory.listFiles(new RegexFilter(".*(?i)T_TDD\\.dbf"));
+				File[] tddList = headDirectory.listFiles(new RegexFilter(".*T_TDD\\.dbf"));
 				if (ObjectUtils.isNotEmpty(tddList)) {
 					scanFiles.add(headDirectory.getAbsolutePath());
 				} else {
@@ -248,7 +291,7 @@ public class DBFUtils {
 		// 从配置文件读取DBF文件的编码
 		String charset = PropertiesUtils.readProperty("dbf.encode");
 		List<EnrRecruit> recruits = new ArrayList<>();
-		File[] findTdd = new File(root).listFiles(new RegexFilter(".*(?i)T_TDD\\.dbf"));
+		File[] findTdd = new File(root).listFiles(new RegexFilter(".*T_TDD\\.dbf"));
 		String tddPath = root.endsWith("/") ? root + "T_TDD.dbf" : root + "/" + "T_TDD.dbf";
 		LinkedHashMap<String, Pair<String, String>> originMap = new LinkedHashMap<>();
 		LinkedList<String> originField = new LinkedList<>();
@@ -259,6 +302,11 @@ public class DBFUtils {
 
 		if (ObjectUtils.isNotEmpty(findTdd)) {
 			tddPath = findTdd[0].getAbsolutePath();
+		}
+
+		getWholeTable(root, "T_TDD", "TDD");
+		if (EnrRecruitBmkDTO.class == handleType) {
+			getWholeTable(root, "T_BMK", "BMK");
 		}
 
 		try (DBFReader reader = new DBFReader(new FileInputStream(tddPath), Charset.forName(charset))) {
@@ -299,14 +347,21 @@ public class DBFUtils {
 					String column = entry.getValue().getValue();
 					String originFieldName = originField.get(originFieldCount);
 					if (StringUtils.equals(entry.getKey(), originFieldName)) {
-						Map<String, String> selected = selectSingleDBFRow(root, origin, "KSH", ksh);
+						Map<String, String> selected;
+						if (StringUtils.equals(origin, "T_BMK")) {
+							selected = currentBmk.get(ksh);
+						} else {
+							selected = currentTdd.get(ksh);
+						}
+//						Map<String, String> selected = selectSingleDBFRow(root, origin, "KSH", ksh);
 						if (MapUtils.isNotEmpty(selected)) {
 							Field field = recruitClass.getDeclaredField(originFieldName);
 							field.setAccessible(true);
 							if ("java.lang.String".equalsIgnoreCase(field.getGenericType().getTypeName()))
 								field.set(recruit, selected.get(column));
-							else
+							else {
 								field.set(recruit, ConvertUtils.convert(selected.get(column), field.getType()));
+							}
 						}
 					}
 					originFieldCount++;
@@ -321,7 +376,13 @@ public class DBFUtils {
 					String target = current.get(2);
 					String key = current.get(3);
 					String value = current.get(4);
-					Map<String, String> selected = selectSingleDBFRow(root, refer, "KSH", ksh);
+					Map<String, String> selected;
+					if (StringUtils.equals(refer, "T_BMK")) {
+						selected = currentBmk.get(ksh);
+					} else {
+						selected = currentTdd.get(ksh);
+					}
+//					Map<String, String> selected = selectSingleDBFRow(root, refer, "KSH", ksh);
 					if (MapUtils.isNotEmpty(selected)) {
 						String keyTarget = selected.get(referColumn);
 						Map<String, String> dictionary = getMap(root, target, key, value);
@@ -331,8 +392,9 @@ public class DBFUtils {
 							field.setAccessible(true);
 							if ("java.lang.String".equalsIgnoreCase(field.getGenericType().getTypeName()))
 								field.set(recruit, valueTarget);
-							else
+							else {
 								field.set(recruit, ConvertUtils.convert(valueTarget, field.getType()));
+							}
 						}
 					}
 					externalMapCount++;
@@ -362,6 +424,10 @@ public class DBFUtils {
 			}
 		} catch (NoSuchFieldException | IllegalAccessException | IOException | DBFException e) {
 			e.printStackTrace();
+		} finally {
+			currentTdd.clear();
+			currentBmk.clear();
+			currentMap.clear();
 		}
 		return recruits;
 	}
@@ -374,7 +440,7 @@ public class DBFUtils {
 	 */
 	private static boolean haveBMK(String path) {
 		File folder = new File(path);
-		File[] result = folder.listFiles(new RegexFilter(".*(?i)T_BMK\\.dbf"));
+		File[] result = folder.listFiles(new RegexFilter(".*T_BMK\\.dbf"));
 		return ObjectUtils.isNotEmpty(result);
 	}
 
@@ -384,6 +450,7 @@ public class DBFUtils {
 	 * @param rootPath 根目录
 	 * @return 学生信息
 	 */
+	@Deprecated
 	public static List<EnrRecruit> assembleRecruitAllFolders(String rootPath, String year, String level) {
 		Set<Class<?>> targetClass = AnnotationUtils.scanTargetClass();
 		// 扫描使用注解标记的两种处理类
