@@ -1,15 +1,14 @@
-package com.rock.enroll.utils.dbf;
+package com.tony966.javaspringdbfdemo.Utils;
 
 import com.linuxense.javadbf.DBFException;
 import com.linuxense.javadbf.DBFReader;
 import com.linuxense.javadbf.DBFRow;
-import com.rock.auth.util.LoginInfoUtils;
-import com.rock.enroll.annotation.DBFClass;
-import com.rock.enroll.annotation.DBFColumnExternal;
-import com.rock.enroll.annotation.DBFColumnOrigin;
-import com.rock.enroll.constant.CityConstant;
-import com.rock.enroll.filter.dbf.RegexFilter;
-import com.rock.enroll.po.EnrRecruit;
+import com.tony966.javaspringdbfdemo.Annotation.DBFClass;
+import com.tony966.javaspringdbfdemo.Annotation.DBFColumnExternal;
+import com.tony966.javaspringdbfdemo.Annotation.DBFColumnOrigin;
+import com.tony966.javaspringdbfdemo.Filter.RegexFilter;
+import com.tony966.javaspringdbfdemo.PO.EnrRecruit;
+import com.tony966.javaspringdbfdemo.constant.CityConstant;
 import org.apache.commons.beanutils.ConvertUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.ClassUtils;
@@ -20,6 +19,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.springframework.util.FileSystemUtils;
 import org.springframework.web.multipart.MultipartFile;
 
+import javax.annotation.Nullable;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -73,7 +73,7 @@ public class DBFUtils {
 
 	private static boolean deleteDir(String path) {
 		File deletePath = new File(path);
-		if ((!deletePath.exists()) || deletePath.isDirectory()) {
+		if ((!deletePath.exists())) {
 			return false;
 		} else {
 			return FileSystemUtils.deleteRecursively(deletePath);
@@ -244,7 +244,7 @@ public class DBFUtils {
 	 * @param handleType 省市对应的实体类
 	 * @return 学生信息
 	 */
-	private static List<EnrRecruit> provinceHandler(String root, Class<?> handleType) {
+	private static List<EnrRecruit> provinceHandler(String root, Class<?> handleType, String year, String level, @Nullable String province) {
 		// 从配置文件读取DBF文件的编码
 		String charset = PropertiesUtils.readProperty("dbf.encode");
 		List<EnrRecruit> recruits = new ArrayList<>();
@@ -254,6 +254,9 @@ public class DBFUtils {
 		LinkedList<String> originField = new LinkedList<>();
 		LinkedList<LinkedList<String>> externalMap = new LinkedList<>();
 		LinkedList<String> externalField = new LinkedList<>();
+
+		String syd = StringUtils.isEmpty(province) ? getProvinceName(root) : province;
+
 		if (ObjectUtils.isNotEmpty(findTdd)) {
 			tddPath = findTdd[0].getAbsolutePath();
 		}
@@ -286,7 +289,7 @@ public class DBFUtils {
 				int originFieldCount = 0;
 				EnrRecruit recruit = new EnrRecruit();
 				String ksh = row.getString("KSH");
-				String syd = getProvinceName(root);
+				recruit.setKsh(ksh);
 				recruit.setSyd(syd);
 
 				// 处理来源于单表查询的字段
@@ -309,10 +312,10 @@ public class DBFUtils {
 					originFieldCount++;
 				}
 
-				int externalFieldCount = 0;
+				int externalMapCount = 0;
 				// 处理来源于两表连接查询的字段
-				while (!externalMap.isEmpty()) {
-					LinkedList<String> current = externalMap.removeFirst();
+				while (externalMapCount < externalMap.size()) {
+					LinkedList<String> current = externalMap.get(externalMapCount);
 					String refer = current.get(0);
 					String referColumn = current.get(1);
 					String target = current.get(2);
@@ -324,7 +327,7 @@ public class DBFUtils {
 						Map<String, String> dictionary = getMap(root, target, key, value);
 						if (MapUtils.isNotEmpty(dictionary)) {
 							String valueTarget = dictionary.get(keyTarget);
-							Field field = recruit.getClass().getDeclaredField(externalField.removeFirst());
+							Field field = recruit.getClass().getDeclaredField(externalField.get(externalMapCount));
 							field.setAccessible(true);
 							if ("java.lang.String".equalsIgnoreCase(field.getGenericType().getTypeName()))
 								field.set(recruit, valueTarget);
@@ -332,23 +335,24 @@ public class DBFUtils {
 								field.set(recruit, ConvertUtils.convert(valueTarget, field.getType()));
 						}
 					}
+					externalMapCount++;
 				}
 				String sydm = recruit.getSydm();
 				if (StringUtils.isNotEmpty(sydm)) {
 					// 考区码截取生源地码(地区代码)前两位
 					recruit.setKqm(sydm.substring(0, 2));
 				}
-				recruit.setCjzyb((byte) 0);
-				recruit.setTjb((byte) 0);
-				recruit.setRegisterFlag((byte) 0);
-				recruit.setYxFlag((byte) 0);
-				recruit.setPayFlag((byte) 0);
-				recruit.setDormFlag((byte) 0);
-				recruit.setAffirmFlag((byte) 0);
-				recruit.setCheckFlag((byte) 0);
-				recruit.setGatherFlag((byte) 0);
-				recruit.setDeleteFlag((byte) 0);
-				recruit.setCreateUserId(LoginInfoUtils.getLoginUserId());
+				recruit.setCjzyb(0);
+				recruit.setTjb(0);
+				recruit.setRegisterFlag(0);
+				recruit.setYxFlag(0);
+				recruit.setPayFlag(0);
+				recruit.setDormFlag(0);
+				recruit.setAffirmFlag(0);
+				recruit.setCheckFlag(0);
+				recruit.setGatherFlag(0);
+				recruit.setDeleteFlag(0);
+//				recruit.setCreateUserId(LoginInfoUtils.getLoginUserId());
 				long currentTime = System.currentTimeMillis();
 				Date currentDate = new Date(currentTime);
 				recruit.setCreateTime(currentTime);
@@ -375,12 +379,13 @@ public class DBFUtils {
 	}
 
 	/**
-	 * 将学生信息添加到List
+	 * 自动识别该目录下所有省市的学生信息, 添加到List(速度过慢)
 	 *
 	 * @param rootPath 根目录
 	 * @return 学生信息
 	 */
-	public static List<EnrRecruit> assembleRecruit(String rootPath) {
+	// TODO：参数
+	public static List<EnrRecruit> assembleRecruitAllFolders(String rootPath, String year, String level) {
 		Set<Class<?>> targetClass = AnnotationUtils.scanTargetClass();
 		// 扫描使用注解标记的两种处理类
 		Class<?> bmkClass = targetClass.stream()
@@ -401,13 +406,49 @@ public class DBFUtils {
 		while (!scanPath.isEmpty()) {
 			String current = scanPath.remove();
 			if (haveBMK(current)) {
-				recruits.addAll(provinceHandler(current, bmkClass));
+				recruits.addAll(provinceHandler(current, bmkClass, year, level, null));
 			} else {
-				recruits.addAll(provinceHandler(current, tddClass));
+				recruits.addAll(provinceHandler(current, tddClass, year, level, null));
 			}
 		}
 		// 组装为List后删除删除的目录及目录下面的文件
 		deleteDir(rootPath);
+		return recruits;
+	}
+
+	public static List<EnrRecruit> assembleRecruitSingleFolder(String rootPath, String year, String level, String province) {
+		File root = new File(rootPath);
+
+		LinkedList<String> scanPath = new LinkedList<>(scanFile(rootPath));
+		String path = scanPath.get(0);
+
+		Set<Class<?>> targetClass = AnnotationUtils.scanTargetClass();
+		// 扫描使用注解标记的两种处理类
+		Class<?> bmkClass = targetClass.stream()
+				.filter(item -> StringUtils.equals(item.getAnnotation(DBFClass.class).type(), "BMK"))
+				.findAny()
+				.orElse(DBFClass.class);
+
+		Class<?> tddClass = targetClass.stream()
+				.filter(item -> StringUtils.equals(item.getAnnotation(DBFClass.class).type(), "TDD"))
+				.findAny()
+				.orElse(DBFClass.class);
+
+		if (ClassUtils.isAssignable(bmkClass, DBFClass.class) || ClassUtils.isAssignable(tddClass, DBFClass.class)) {
+			return null;
+		}
+
+		List<EnrRecruit> recruits = new ArrayList<>();
+
+		if (haveBMK(path)) {
+			recruits.addAll(provinceHandler(path, bmkClass, year, level, province));
+		} else {
+			recruits.addAll(provinceHandler(path, tddClass, year, level, province));
+		}
+
+		// 组装为List后删除的目录及目录下面的文件
+		deleteDir(path);
+
 		return recruits;
 	}
 }

@@ -8,7 +8,7 @@ public class RegexFilter implements FilenameFilter {
 	private Pattern pattern;
 
 	public RegexFilter(String regex) {
-		pattern = Pattern.compile(regex);
+		pattern = Pattern.compile(regex, Pattern.CASE_INSENSITIVE);
 	}
 
 	@Override
