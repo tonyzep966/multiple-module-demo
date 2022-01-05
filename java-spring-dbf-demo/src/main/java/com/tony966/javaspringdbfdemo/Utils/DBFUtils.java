@@ -30,6 +30,7 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 public class DBFUtils {
 	private static HashMap<String, HashMap<String, String>> currentTdd = new HashMap<>();  // 学号 - 列名 - 值
@@ -76,6 +77,11 @@ public class DBFUtils {
 		}
 	}
 
+	/**
+	 *
+	 * @param path 删除的根目录
+	 * @return 删除成功
+	 */
 	private static boolean deleteDir(String path) {
 		File deletePath = new File(path);
 		if ((!deletePath.exists())) {
@@ -85,6 +91,12 @@ public class DBFUtils {
 		}
 	}
 
+	/**
+	 * 获取文件的绝对路径，忽略文件名的大小写
+	 * @param rootPath 文件所在的文件夹路径(可以是相对路径)
+	 * @param fileName 文件名
+	 * @return
+	 */
 	private static String getRealAbsolutePathIgnoreCase(String rootPath, String fileName) {
 		File root = new File(rootPath);
 		if (!root.exists()) {
@@ -109,12 +121,36 @@ public class DBFUtils {
 	private static Map<String, String> getMap(String rootPath, String fileName, String keyColumn, String valueColumn) {
 		String path = getRealAbsolutePathIgnoreCase(rootPath, fileName);
 		HashMap<String, String> resultMap = new HashMap<>();
+		// 检查指定的映射文件所在路径是否存在
 		if (StringUtils.isEmpty(path))
 			return null;
+		// 查看预加载字典中是否已经写入该路径的映射
 		if (null != currentMap.get(path)) {
 			return currentMap.get(path);
+		}
+		// 支持多字段映射，通过简单拼接字符串组成新的key实现，以减号分隔
+		if (keyColumn.contains("$")) {
+			// 将字符串拆分回作为key值的列名列表
+			List<String> keyColumnList = Arrays.asList(StringUtils.split(keyColumn, "$"));
+			// 逐行读入DBF文件记录，可根据字段名获取值
+			try (DBFReader reader = new DBFReader(new FileInputStream(path), Charset.forName(PropertiesUtils.readProperty("dbf.encode")))) {
+				DBFRow row;
+				while ((row = reader.nextRow()) != null) {
+					StringBuilder key = new StringBuilder();
+					for (String item : keyColumnList) {
+						// 放入字典时重新将多个key拼接为一个字符串作为一个key使用
+						key.append(row.getObject(item)).append("$");
+					}
+					key.deleteCharAt(key.length() - 1);
+					String value = String.valueOf(row.getObject(valueColumn));
+					resultMap.put(key.toString(), value);
+				}
+			} catch (DBFException | IOException e) {
+				e.printStackTrace();
+			}
 		} else {
-			try (DBFReader reader = new DBFReader(new FileInputStream(path), Charset.forName("GB2312"))) {
+			// 一对一映射时直接放入key和value即可
+			try (DBFReader reader = new DBFReader(new FileInputStream(path), Charset.forName(PropertiesUtils.readProperty("dbf.encode")))) {
 				DBFRow row;
 				while ((row = reader.nextRow()) != null) {
 					String key = String.valueOf(row.getObject(keyColumn));
@@ -125,6 +161,8 @@ public class DBFUtils {
 				e.printStackTrace();
 			}
 		}
+
+		// 以映射文件作为key来索引不同的字典
 		currentMap.put(path, resultMap);
 		return resultMap;
 	}
@@ -174,17 +212,30 @@ public class DBFUtils {
 		}
 	}
 
+	/**
+	 * 预加载整张表的映射，该方法只提供T_TDD或T_BMK的预加载
+	 * @param rootPath 文件所在文件夹的路径
+	 * @param fileName 文件名
+	 * @param mode 读取BMK还是TDD
+	 */
 	private static void getWholeTable(String rootPath, String fileName, String mode) {
+		// 获取文件绝对目录
 		String path = getRealAbsolutePathIgnoreCase(rootPath, fileName);
+		// 预加载字典使用考生号作为key值做索引, 所以需要外部声明
 		String ksh = "";
+		// 验证文件是否存在
 		if (StringUtils.isEmpty(path))
 			return;
 		try (DBFReader reader = new DBFReader(new FileInputStream(path), Charset.forName("GB2312"))) {
 			int numberOfFields = reader.getFieldCount();
+			// 逐行读取DBF记录
 			DBFRow row;
 			while ((row = reader.nextRow()) != null) {
+				// 一行记录的字典(列名, 该列单元格的值)
 				HashMap<String, String> result = new HashMap<>();
+				// 因为不能够确定字段具体名称, 故使用列数下标的方式进行该行的读取
 				for (int column = 0; column < numberOfFields; column++) {
+					// 获取该列的值
 					Object dbfValue = row.getObject(column);
 					String value;
 					if (dbfValue instanceof Date) {
@@ -195,13 +246,17 @@ public class DBFUtils {
 						// 转换为时间戳字符串
 						value = String.valueOf(((Date) dbfValue).getTime());
 					} else {
+						// 字段值默认存储为字符串
 						value = String.valueOf(dbfValue);
 					}
+					// 获取列名
 					String columnName = reader.getField(column).getName();
+					// 获取考生号
 					if (StringUtils.equals(columnName, "KSH"))
 						ksh = value;
 					result.put(columnName, value);
 				}
+				// 写入预加载的对象
 				if (StringUtils.equals(mode, "BMK")) {
 					currentBmk.put(ksh, result);
 				} else {
@@ -265,12 +320,17 @@ public class DBFUtils {
 		return scanFiles;
 	}
 
+	/**
+	 * 扫描路径名，匹配省市标准名称(生源地)
+	 * @param rootPath DBF文件所在路径
+	 * @return 省市标准名称
+	 */
 	private static String getProvinceName(String rootPath) {
-		StringBuffer patternString = new StringBuffer();
+		StringBuilder patternString = new StringBuilder();
 		for (String key : CityConstant.originPlanMap.keySet()) {
 			patternString.append(key).append("|");
 		}
-		patternString = new StringBuffer("(" + StringUtils.chop(patternString.toString()) + ")");
+		patternString = new StringBuilder("(" + StringUtils.chop(patternString.toString()) + ")");
 
 		Pattern pattern = Pattern.compile(patternString.toString());
 		Matcher matcher = pattern.matcher(rootPath);
@@ -290,20 +350,29 @@ public class DBFUtils {
 	private static List<EnrRecruit> provinceHandler(String root, Class<?> handleType, String year, String level, @Nullable String province) {
 		// 从配置文件读取DBF文件的编码
 		String charset = PropertiesUtils.readProperty("dbf.encode");
+		// 该省市录取全部学生信息
 		List<EnrRecruit> recruits = new ArrayList<>();
-		File[] findTdd = new File(root).listFiles(new RegexFilter(".*T_TDD\\.dbf"));
+		// 初始默认给出T_TDD文件路径
 		String tddPath = root.endsWith("/") ? root + "T_TDD.dbf" : root + "/" + "T_TDD.dbf";
+		// 本表查询的成员属性和其注解属性(origin, column)的字典
 		LinkedHashMap<String, Pair<String, String>> originMap = new LinkedHashMap<>();
+		// 本表查询的成员属性名
 		LinkedList<String> originField = new LinkedList<>();
+		// 外表连接的映射, LinkedList保持注解属性的顺序
 		LinkedList<LinkedList<String>> externalMap = new LinkedList<>();
+		// 需要外表连接的成员属性名
 		LinkedList<String> externalField = new LinkedList<>();
 
+		// 生源地，如果单个省市导入则手动指定，否则可以扫描路径名获取
 		String syd = StringUtils.isEmpty(province) ? getProvinceName(root) : province;
 
+		// 查找该目录下的T_TDD文件真实名称
+		File[] findTdd = new File(root).listFiles(new RegexFilter(".*T_TDD\\.dbf"));
 		if (ObjectUtils.isNotEmpty(findTdd)) {
 			tddPath = findTdd[0].getAbsolutePath();
 		}
 
+		// 预加载主表
 		getWholeTable(root, "T_TDD", "TDD");
 		if (EnrRecruitBmkDTO.class == handleType) {
 			getWholeTable(root, "T_BMK", "BMK");
@@ -312,6 +381,7 @@ public class DBFUtils {
 		try (DBFReader reader = new DBFReader(new FileInputStream(tddPath), Charset.forName(charset))) {
 			// 整理省市对应实体类的字段数据来源, 分为单表和两表连接
 			for (Field field : handleType.getDeclaredFields()) {
+				// 将字段名和注解属性放入字典，按照注解类型分类
 				if (field.isAnnotationPresent(DBFColumnOrigin.class)) {
 					DBFColumnOrigin annotation = field.getAnnotation(DBFColumnOrigin.class);
 					String origin = annotation.origin();
@@ -331,6 +401,7 @@ public class DBFUtils {
 				}
 			}
 
+			// 逐行读取主表
 			DBFRow row;
 			while ((row = reader.nextRow()) != null) {
 
@@ -342,9 +413,13 @@ public class DBFUtils {
 
 				// 处理来源于单表查询的字段
 				for (Map.Entry<String, Pair<String, String>> entry : originMap.entrySet()) {
+					// 目标类的类型Class
 					Class<?> recruitClass = recruit.getClass();
+					// 来源表
 					String origin = entry.getValue().getKey();
+					// 来源字段
 					String column = entry.getValue().getValue();
+					// 目标成员属性名
 					String originFieldName = originField.get(originFieldCount);
 					if (StringUtils.equals(entry.getKey(), originFieldName)) {
 						Map<String, String> selected;
@@ -355,11 +430,13 @@ public class DBFUtils {
 						}
 //						Map<String, String> selected = selectSingleDBFRow(root, origin, "KSH", ksh);
 						if (MapUtils.isNotEmpty(selected)) {
+							// 通过Field赋值
 							Field field = recruitClass.getDeclaredField(originFieldName);
 							field.setAccessible(true);
 							if ("java.lang.String".equalsIgnoreCase(field.getGenericType().getTypeName()))
 								field.set(recruit, selected.get(column));
 							else {
+								// 恢复为目标类成员属性的数据类型
 								field.set(recruit, ConvertUtils.convert(selected.get(column), field.getType()));
 							}
 						}
@@ -371,29 +448,52 @@ public class DBFUtils {
 				// 处理来源于两表连接查询的字段
 				while (externalMapCount < externalMap.size()) {
 					LinkedList<String> current = externalMap.get(externalMapCount);
+					// Key所在表
 					String refer = current.get(0);
+					// Key所在列名
 					String referColumn = current.get(1);
+					// 目标字典表
 					String target = current.get(2);
+					// 对应目标Key所在列
 					String key = current.get(3);
+					// 目标Value所在列
 					String value = current.get(4);
 					Map<String, String> selected;
+					// 从预加载主表获取映射
 					if (StringUtils.equals(refer, "T_BMK")) {
 						selected = currentBmk.get(ksh);
 					} else {
 						selected = currentTdd.get(ksh);
 					}
-//					Map<String, String> selected = selectSingleDBFRow(root, refer, "KSH", ksh);
+					// 如果映射存在，开始赋值
 					if (MapUtils.isNotEmpty(selected)) {
-						String keyTarget = selected.get(referColumn);
+						String keyProperty;
+						//如果对应多个字段(字符串为拼接)
+						if (referColumn.contains("$")) {
+							// 拆分列名
+							List<String> referColumnList = Arrays.asList(StringUtils.split(referColumn, "$"));
+							// 将列名映射为所在该列单元格的值
+							ArrayList<String> keyPropertyList = referColumnList.stream().map(selected::get).collect(Collectors.toCollection(ArrayList::new));
+							// 将值拼接回字符串
+							keyProperty = StringUtils.join(keyPropertyList, "$");
+						} else {
+							// 如果是一对一映射，则直接从预加载的主表中获取
+							keyProperty = selected.get(referColumn);
+						}
+						// 获取字典(key可以是拼接的字符串，代表多个列)
 						Map<String, String> dictionary = getMap(root, target, key, value);
 						if (MapUtils.isNotEmpty(dictionary)) {
-							String valueTarget = dictionary.get(keyTarget);
+							// 获取字典映射的值
+							String valueProperty = dictionary.get(keyProperty);
+							// 获取Field, 通过Field赋值
 							Field field = recruit.getClass().getDeclaredField(externalField.get(externalMapCount));
 							field.setAccessible(true);
+							// 字符串不用转换
 							if ("java.lang.String".equalsIgnoreCase(field.getGenericType().getTypeName()))
-								field.set(recruit, valueTarget);
+								field.set(recruit, valueProperty);
 							else {
-								field.set(recruit, ConvertUtils.convert(valueTarget, field.getType()));
+								// 恢复为目标类成员属性的数据类型
+								field.set(recruit, ConvertUtils.convert(valueProperty, field.getType()));
 							}
 						}
 					}
@@ -404,7 +504,11 @@ public class DBFUtils {
 					// 考区码截取生源地码(地区代码)前两位
 					recruit.setKqm(sydm.substring(0, 2));
 				}
+				// 层次名称
+				recruit.setCcmc(level);
+				// 是否有成绩支援表
 				recruit.setCjzyb(0);
+				// 体检表
 				recruit.setTjb(0);
 				recruit.setRegisterFlag(0);
 				recruit.setYxFlag(0);
@@ -425,6 +529,7 @@ public class DBFUtils {
 		} catch (NoSuchFieldException | IllegalAccessException | IOException | DBFException e) {
 			e.printStackTrace();
 		} finally {
+			// 每个省市读取完，将预加载的对象清空
 			currentTdd.clear();
 			currentBmk.clear();
 			currentMap.clear();
@@ -500,6 +605,7 @@ public class DBFUtils {
 				.findAny()
 				.orElse(DBFClass.class);
 
+		// 如果没有找到，则Class为DBFClass.class
 		if (ClassUtils.isAssignable(bmkClass, DBFClass.class) || ClassUtils.isAssignable(tddClass, DBFClass.class)) {
 			return null;
 		}
